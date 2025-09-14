@@ -1,0 +1,37 @@
+{
+  "api_key": "",
+  "model": "gemini-1.5-flash",
+  "individual_models": {
+    "style_analysis": "gemini-1.5-flash",
+    "grammar_check": "gemini-1.5-flash",
+    "content_review": "gemini-1.5-flash",
+    "novel_context": "gemini-1.5-pro"
+  },
+  "language": "tr",
+  "theme": "default",
+  "auto_save": true,
+  "auto_save_interval": 300,
+  "recent_projects": [],
+  "window_geometry": "1200x800",
+  "last_project": null,
+  "projects_directory": null,
+  "ui_settings": {
+    "show_suggestions_panel": true,
+    "show_chapter_list": true,
+    "font_size": 12,
+    "font_family": "Arial"
+  },
+  "workflow_settings": {
+    "auto_grammar_check": true,
+    "auto_style_analysis": true,
+    "auto_content_review": false,
+    "require_approval": true,
+    "backup_on_apply": true
+  },
+  "prompts": {},
+  "style_analysis_context_source": "full_text",
+  "content_review_context_source": "full_text",
+  "grammar_check_context_source": "novel_context",
+  "use_dynamic_timeout": true,
+  "fixed_timeout": 120
+}
