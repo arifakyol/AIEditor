@@ -331,6 +331,8 @@ class AnalysisManager:
                 if newly_added_suggestions:
                     print(f"{len(newly_added_suggestions)} adet yeni öneri listeye eklendi.")
                     self.app.root.after(0, lambda: self.app.display_suggestions(chapter.suggestions))
+                    # Bölüm listesini güncelle (öneri sayıları için)
+                    self.app.root.after(0, lambda: self.app.project_panel.update_chapters(self.app.project_panel.chapters, preserve_selection=True))
                 else:
                     print("Bulunan tüm öneriler zaten listede mevcuttu.")
                     self.app.root.after(0, lambda: messagebox.showinfo("Analiz Sonucu", "Bulunan öneriler zaten öneri listesinde mevcut."))
@@ -440,6 +442,9 @@ class AnalysisManager:
             
             self.app.root.after(0, lambda: self.app.display_suggestions(suggestions or []))
             chapter.suggestions = suggestions or []
+            
+            # Bölüm listesini güncelle (öneri sayıları için)
+            self.app.root.after(0, lambda: self.app.project_panel.update_chapters(self.app.project_panel.chapters, preserve_selection=True))
 
             # Fazı tamamlanmış olarak işaretle ve sonraki faza geç
             if analysis_type == "grammar_check":
@@ -457,6 +462,9 @@ class AnalysisManager:
             self.app.root.after(0, lambda: self.app.project_panel.update_status())
             self.app.root.after(0, lambda: self.app.project_panel.update_chapters(self.app.project_panel.chapters, preserve_selection=True))
             self.app.root.after(0, lambda: self.app.mark_as_modified())
+            
+            # Bölüm listesini güncelle (öneri sayıları için)
+            self.app.root.after(0, lambda: self.app.project_panel.update_chapters(self.app.project_panel.chapters, preserve_selection=True))
 
         except AIAnalysisError as e:
             print(f"=== {phase_name.upper()} ANALİZ HATASI (AI) ===")
@@ -1024,6 +1032,10 @@ class AnalysisManager:
         if current_chapter:
             self.app.project_panel.update_statistics()
             self.app.project_panel.update_preview(current_chapter)
+            # Bölüm listesini de güncelle (öneri sayıları için)
+            self.app.project_panel.update_chapters(self.app.project_panel.chapters, preserve_selection=True)
+            # Progress bar'ı güncelle
+            self.app.project_panel.update_status()
         
         return None
 

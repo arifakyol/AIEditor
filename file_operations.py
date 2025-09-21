@@ -503,6 +503,15 @@ class FileOperationsManager:
                 if self.file_manager.chapters:
                     current_index = self.app.project_panel.current_chapter_index
                     self.app.project_panel.select_chapter(current_index)
+                    
+                    # 4. Seçili bölümün önerilerini yükle ve göster
+                    current_chapter = self.app.project_panel.get_current_chapter()
+                    if current_chapter and hasattr(current_chapter, 'suggestions'):
+                        # Bekleyen önerileri göster
+                        if current_chapter.suggestions:
+                            self.app.display_suggestions(current_chapter.suggestions)
+                        else:
+                            self.app.display_suggestions([])
 
             print(f"Proje başarıyla yüklendi: {project_file}")
             return True
