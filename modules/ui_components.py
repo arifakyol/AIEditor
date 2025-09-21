@@ -2,6 +2,83 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 from typing import Callable, List, Dict, Optional
 
+class DualProgressBar(tk.Frame):
+    """
+    Pasif (gri) ve aktif (yeşil) ilerlemeyi gösteren çift katmanlı bir ilerleme çubuğu.
+    """
+    def __init__(self, parent, height=20, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.height = height
+        self.canvas = tk.Canvas(self, height=height, highlightthickness=0, bg='#E0E0E0')
+        self.canvas.pack(fill=tk.X, expand=True)
+        
+        # Dikdörtgenler (ID'lerini sakla)
+        self.passive_bar_id = self.canvas.create_rectangle(0, 0, 0, height, fill='#BDBDBD', outline='')
+        self.active_bar_id = self.canvas.create_rectangle(0, 0, 0, height, fill='#4CAF50', outline='')
+        
+        # Yüzde etiketi (doğrudan canvas üzerine çizilecek)
+        self.label_id = self.canvas.create_text(0, 0, text="", font=('Arial', 9, 'bold'), anchor='center')
+
+        self.bind("<Configure>", self._on_resize)
+        self._passive_progress = 0.0  # 0.0 - 1.0 arası
+        self._active_progress = 0.0   # 0.0 - 1.0 arası
+
+    def set_progress(self, passive_progress: float, active_progress: float):
+        """
+        Pasif ve aktif ilerlemeyi ayarlar.
+        Değerler 0.0 ile 1.0 arasında olmalıdır.
+        """
+        self._passive_progress = max(0.0, min(1.0, passive_progress))
+        self._active_progress = max(0.0, min(1.0, active_progress))
+        
+        self._update_display()
+
+    def _update_display(self):
+        """Görseli günceller."""
+        width = self.canvas.winfo_width()
+        height = self.height
+
+        # Pasif bar (gri)
+        passive_width = width * self._passive_progress
+        self.canvas.coords(self.passive_bar_id, 0, 0, passive_width, height)
+
+        # Aktif bar (yeşil)
+        active_width = width * self._active_progress
+        self.canvas.coords(self.active_bar_id, 0, 0, active_width, height)
+        
+        # Etiket
+        # Aktif ilerleme yüzdesini gösterelim
+        progress_percent = self._active_progress * 100
+        
+        # Etiketin konumunu ve metnini güncelle
+        label_x = width / 2
+        label_y = height / 2
+        self.canvas.coords(self.label_id, label_x, label_y)
+        
+        # Sadece ilerleme varsa yüzdeyi göster
+        if self._active_progress > 0 or self._passive_progress > 0:
+            self.canvas.itemconfig(self.label_id, text=f"%{progress_percent:.1f}")
+        else:
+            self.canvas.itemconfig(self.label_id, text="")
+
+        # Yazı rengini okunabilirliğe göre ayarla
+        # Etiketin kapladığı alan
+        label_bbox = self.canvas.bbox(self.label_id)
+        if label_bbox:
+            label_start_x, _, label_end_x, _ = label_bbox
+            # Etiket tamamen aktif barın içindeyse yazıyı beyaz yap
+            if label_start_x > 0 and label_end_x < active_width:
+                self.canvas.itemconfig(self.label_id, fill='white')
+            # Etiket tamamen pasif barın içindeyse (ama aktif değilse) yazıyı beyaz yap
+            elif label_start_x > 0 and label_end_x < passive_width and active_width < label_start_x:
+                 self.canvas.itemconfig(self.label_id, fill='white')
+            else:
+                self.canvas.itemconfig(self.label_id, fill='black')
+
+    def _on_resize(self, event=None):
+        """Pencere yeniden boyutlandırıldığında barı günceller."""
+        self._update_display()
+
 class SuggestionCard(ttk.Frame):
     def __init__(self, parent, suggestion, callback: Callable):
         super().__init__(parent)
@@ -291,8 +368,8 @@ class ProjectPanel(ttk.Frame):
         self.status_label = ttk.Label(status_frame, text="Proje yüklenmedi")
         self.status_label.pack(anchor=tk.W)
         
-        self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(status_frame, variable=self.progress_var, maximum=100)
+        # Yeni çift katmanlı ilerleme çubuğu
+        self.progress_bar = DualProgressBar(status_frame, height=18)
         self.progress_bar.pack(fill=tk.X, pady=(5, 0))
         
         # Bölümler listesi
@@ -321,9 +398,6 @@ class ProjectPanel(ttk.Frame):
         
         # Click olayı için binding
         self.chapters_text.bind('<Button-1>', self.on_chapter_click)
-        
-        # Eski listbox referansını kaldır
-        # self.chapters_listbox artık self.chapters_text
         
         # Bölüm kontrolleri
         control_frame = ttk.Frame(chapters_frame)
@@ -365,6 +439,7 @@ class ProjectPanel(ttk.Frame):
     
     def update_chapters(self, chapters: List, preserve_selection: bool = False):
         """Bölüm listesini güncelle - Modern tree view formatında"""
+        print(f"DEBUG - update_chapters çağrıldı, {len(chapters)} bölüm")
         # Mevcut seçimi kaydet
         current_selection = self.current_chapter_index if preserve_selection else 0
         
@@ -380,6 +455,7 @@ class ProjectPanel(ttk.Frame):
         self.chapters_text.tag_configure('completed', foreground='#27ae60')
         self.chapters_text.tag_configure('pending', foreground='#e74c3c')
         self.chapters_text.tag_configure('selected', background='#0078d4', foreground='white')
+        self.chapters_text.tag_configure('suggestion_count', font=('Segoe UI', 7), foreground='#666666', lmargin1=30)
         
         for i, chapter in enumerate(chapters):
             # Bölüm başlığı
@@ -403,12 +479,19 @@ class ProjectPanel(ttk.Frame):
                 phases = chapter.analysis_phases
                 for prefix, name in phase_definitions:
                     icon = self._get_phase_icon(phases, prefix)
-                    text = f"    {icon} {name}\n"
+                    
+                    # Bu analiz türü için öneri sayılarını hesapla
+                    total_suggestions, remaining_suggestions = self._get_suggestion_counts(chapter, prefix)
+                    
+                    # Öneri sayısı bilgisini ekle - her zaman göster
+                    suggestion_info = f" ({remaining_suggestions}/{total_suggestions})"
+                    
+                    text = f"    {icon} {name}{suggestion_info}\n"
                     tag = 'completed' if phases.get(f'{prefix}_completed', False) else 'pending'
                     self._add_phase_display(text, tag)
             else:
                 # Analiz fazları tanımlı değil
-                for _, name in phase_definitions:
+                for prefix, name in phase_definitions:
                     process_text = f"    ⏳ {name}\n"
                     self._add_phase_display(process_text, 'pending')
         
@@ -459,6 +542,49 @@ class ProjectPanel(ttk.Frame):
             return "✅"
         else:
             return "⏳"
+    
+    def _get_suggestion_counts(self, chapter, phase_prefix: str) -> tuple:
+        """Belirtilen analiz türü için toplam ve kalan öneri sayılarını hesaplar."""
+        # Analiz türüne göre editör tipini belirle
+        editor_type_map = {
+            'grammar': 'Dil Bilgisi Editörü',
+            'style': 'Üslup Editörü', 
+            'content': 'İçerik Editörü'
+        }
+        target_editor_type = editor_type_map.get(phase_prefix, '')
+        
+        total_suggestions = 0
+        remaining_suggestions = 0
+        
+        # Mevcut bekleyen önerilerden say
+        if hasattr(chapter, 'suggestions') and chapter.suggestions:
+            for suggestion in chapter.suggestions:
+                # Dict mi yoksa nesne mi kontrol et
+                if isinstance(suggestion, dict):
+                    editor_type = suggestion.get('editor_type', '')
+                else:
+                    editor_type = getattr(suggestion, 'editor_type', '')
+                
+                if editor_type == target_editor_type:
+                    remaining_suggestions += 1
+        
+        # Geçmiş önerilerden toplam sayıyı hesapla
+        if hasattr(chapter, 'suggestion_history') and chapter.suggestion_history:
+            for entry in chapter.suggestion_history:
+                suggestion_data = entry.get('suggestion', {})
+                if isinstance(suggestion_data, dict):
+                    editor_type = suggestion_data.get('editor_type', '')
+                else:
+                    editor_type = getattr(suggestion_data, 'editor_type', '')
+                
+                if editor_type == target_editor_type:
+                    total_suggestions += 1
+        
+        # Mevcut bekleyen önerileri de toplam sayıya ekle
+        total_suggestions += remaining_suggestions
+        
+        print(f"DEBUG - {phase_prefix} için öneri sayıları: {remaining_suggestions}/{total_suggestions}")
+        return total_suggestions, remaining_suggestions
 
     def on_chapter_click(self, event):
         """Modern bölüm listesi click olayını işle"""
@@ -541,23 +667,55 @@ class ProjectPanel(ttk.Frame):
             self.select_chapter(self.current_chapter_index - 1)
     
     def update_status(self):
-        """Durum bilgilerini güncelle"""
+        """Durum bilgilerini ve yeni ilerleme çubuğunu güncelle"""
         if not self.chapters:
             self.status_label.config(text="Proje yüklenmedi")
-            self.progress_var.set(0)
+            self.progress_bar.set_progress(0.0, 0.0)
             self.update_preview(None)
             return
         
         current_chapter = self.get_current_chapter()
         if current_chapter:
-            processed_count = sum(1 for ch in self.chapters if getattr(ch, 'is_processed', False))
-            progress = (processed_count / len(self.chapters)) * 100
-            
             self.status_label.config(
                 text=f"Bölüm {current_chapter.chapter_number}/{len(self.chapters)} - "
                      f"{current_chapter.title}"
             )
-            self.progress_var.set(progress)
+
+            # --- Yeni İlerleme Hesaplama Mantığı ---
+            total_possible_analyses = len(self.chapters) * 3
+            completed_analyses = 0
+            
+            total_suggestions_in_project = 0
+            processed_suggestions_in_project = 0
+
+            for chapter in self.chapters:
+                # Pasif ilerleme (analizler)
+                if hasattr(chapter, 'analysis_phases'):
+                    phases = chapter.analysis_phases
+                    if phases.get('grammar_completed', False): completed_analyses += 1
+                    if phases.get('style_completed', False): completed_analyses += 1
+                    if phases.get('content_completed', False): completed_analyses += 1
+                
+                # Aktif ilerleme (öneriler)
+                # Toplam öneri = geçmiş + mevcut
+                total_chapter_suggestions = len(getattr(chapter, 'suggestion_history', [])) + len(getattr(chapter, 'suggestions', []))
+                processed_chapter_suggestions = len(getattr(chapter, 'suggestion_history', []))
+                
+                total_suggestions_in_project += total_chapter_suggestions
+                processed_suggestions_in_project += processed_chapter_suggestions
+
+            # Oranları hesapla (0'a bölünmeyi engelle)
+            passive_progress = (completed_analyses / total_possible_analyses) if total_possible_analyses > 0 else 0.0
+            
+            # Aktif ilerleme, pasif ilerlemenin bir parçasıdır.
+            # Yani, tüm öneriler işlense bile, sadece analizi tamamlanmış kısımlar yeşil olabilir.
+            # Bu yüzden, öneri işleme oranını, analiz tamamlama oranıyla çarparız.
+            suggestion_process_ratio = (processed_suggestions_in_project / total_suggestions_in_project) if total_suggestions_in_project > 0 else 0.0
+            active_progress = passive_progress * suggestion_process_ratio
+
+            # İlerleme çubuğunu güncelle
+            self.progress_bar.set_progress(passive_progress, active_progress)
+            
             self.update_preview(current_chapter)
         
         self.update_statistics()
@@ -719,12 +877,13 @@ Toplam Öneri: {total_suggestions}
         
         # Progress bar'ı geri yükle
         saved_progress = ui_state.get('progress_percentage', 0)
-        self.progress_var.set(saved_progress)
+        # Bu kısım yeni progress bar ile uyumlu hale getirilmeli
+        # Şimdilik sadece status'u güncelliyoruz, bu da progress bar'ı tetikleyecek
         
         # İstatistikleri güncelle
         self.update_status()
         
-        print(f"📋 UI durumu geri yüklendi - Bölüm: {self.current_chapter_index}, Progress: {saved_progress:.1f}%")
+        print(f"📋 UI durumu geri yüklendi - Bölüm: {self.current_chapter_index}")
 
 class PromptEditor(tk.Toplevel):
     def __init__(self, parent, prompts: Dict[str, str], callback: Callable):

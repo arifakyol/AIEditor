@@ -831,65 +831,52 @@ Lütfen aşağıdaki başlıkları kullanarak bir özet oluştur:
         return editor_names.get(analysis_type, 'Bilinmeyen Editör')
     
     def extract_quoted_text(self, text: str) -> str:
-        """Metin içinden tırnak içindeki kısmı çıkar - Gelişmiş pattern'ler ile"""
-        # Tırnak iŞaretleri içinde içerik varsa bile tam metni al
-        
-        # Çift tırnak işaretleri arasındaki metni bul - En uzun eşleşmeyi tercih et
-        if '"' in text:
-            quote_positions = [i for i, char in enumerate(text) if char == '"']
-            if len(quote_positions) >= 2:
-                # En uzun tırnak arası metni bul
-                longest_content = ""
-                for i in range(0, len(quote_positions) - 1, 2):
-                    start = quote_positions[i] + 1
-                    end = quote_positions[i + 1]
-                    content = text[start:end].strip()
-                    if len(content) > len(longest_content):
-                        longest_content = content
-                if longest_content:
-                    return longest_content
-        
-        # Tek tırnak işaretleri - aynı mantık
-        if "'" in text:
-            quote_positions = [i for i, char in enumerate(text) if char == "'"]
-            if len(quote_positions) >= 2:
-                longest_content = ""
-                for i in range(0, len(quote_positions) - 1, 2):
-                    start = quote_positions[i] + 1
-                    end = quote_positions[i + 1]
-                    content = text[start:end].strip()
-                    if len(content) > len(longest_content):
-                        longest_content = content
-                if longest_content:
-                    return longest_content
-        
-        # Türkçe tırnak işaretleri
-        if "“" in text and "”" in text:
-            start = text.find("“")
-            end = text.find("”", start + 1)
-            if end != -1:
-                return text[start + 1:end].strip()
-        
-        # Bold işaretleri arasındaki metin
-        if "**" in text:
-            parts = text.split("**")
-            for i, part in enumerate(parts):
-                if i % 2 == 1 and part.strip() and len(part.strip()) > 3:  # Bold içindeki metin
-                    return part.strip()
-        
-        # Eğer tırnak yoksa, ": " sonrasını al - ama daha dikkatli
-        if ": " in text:
-            after_colon = text.split(": ", 1)[1].strip()
-            # Kısa ve anlamlı metin kontrolü - daha geniş kabul
-            if len(after_colon) > 2:
-                return after_colon
-        
-        # Son çare: satırın kendisi (eğer yeterince uzun ise)
-        text_clean = text.strip()
-        if len(text_clean) > 5 and not any(char in text_clean for char in ['*', '#', '-', '=']):
-            return text_clean
-        
-        return ""
+        """Metin içinden tırnak içindeki kısmı çıkar - Kaçış karakterlerini dikkate alır."""
+        try:
+            # Değerin başlangıcını bulmaya çalış: genellikle ": " sonrasıdır
+            start_search_index = 0
+            if ':' in text:
+                start_search_index = text.find(':')
+
+            # Değeri başlatan ilk tırnağı bul
+            open_quote_index = text.find('"', start_search_index)
+            if open_quote_index == -1:
+                # Tırnak yoksa, belki tırnaksız bir değerdir.
+                # Sadece : sonrasını almayı dene.
+                if start_search_index > 0 and start_search_index < len(text) - 1:
+                    return text[start_search_index + 1:].strip()
+                return ""
+
+            content = []
+            i = open_quote_index + 1
+            in_escape = False
+
+            while i < len(text):
+                char = text[i]
+
+                if in_escape:
+                    # Önceki karakter bir backslash idi, bu karakteri olduğu gibi ekle
+                    content.append(char)
+                    in_escape = False
+                elif char == '\\':
+                    # Bir kaçış karakteriyle karşılaşıldı
+                    in_escape = True
+                elif char == '"':
+                    # Kaçışsız bir tırnak, bu string'in sonudur
+                    return "".join(content)
+                else:
+                    # Normal bir karakter, içeriğe ekle
+                    content.append(char)
+                
+                i += 1
+            
+            # Döngü bitti ama kapatma tırnağı bulunamadı (kesilmiş yanıt)
+            # O ana kadar toplanan içeriği döndür
+            return "".join(content)
+
+        except Exception as e:
+            print(f"extract_quoted_text hatası: {e}")
+            return "" # Hata durumunda boş string döndür
     
     def extract_title(self, text: str) -> str:
         """Metinden başlık çıkar"""

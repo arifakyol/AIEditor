@@ -103,6 +103,16 @@ class Chapter:
             "current_phase": "none"
         })
         
+        # Öneri geçmişinden bekleyen önerileri yükle
+        if chapter.suggestion_history and not chapter.suggestions:
+            # Eğer suggestions listesi boşsa ama suggestion_history varsa,
+            # henüz işlenmemiş önerileri suggestions listesine ekle
+            for entry in chapter.suggestion_history:
+                if entry.get('action') == 'pending':  # Henüz işlenmemiş öneriler
+                    suggestion_data = entry.get('suggestion', {})
+                    if suggestion_data:
+                        chapter.suggestions.append(suggestion_data)
+        
         return chapter
 
 class FileManager:
