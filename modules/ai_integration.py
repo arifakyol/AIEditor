@@ -968,6 +968,10 @@ Lütfen aşağıdaki başlıkları kullanarak bir özet oluştur:
             print(f"Özel analiz hatası: {e}")
             return []
     
+    def update_prompts(self, new_prompts: Dict[str, str]):
+        """Prompt'ları bir sözlükten toplu olarak güncelle."""
+        self.prompts = new_prompts.copy()
+    
     def update_prompt(self, prompt_type: str, new_prompt: str):
         """Prompt güncelle"""
         self.prompts[prompt_type] = new_prompt
